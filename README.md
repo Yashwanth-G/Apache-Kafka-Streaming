@@ -36,7 +36,8 @@ Java + Spring.
 ## Roadmap
 
 ### Part 1 — Foundations (the "why" and "what")
-- **Module 1** — What is Kafka and why does it exist? *(the post office analogy)*
+- **Module 1** — What is Kafka and why does it exist? *(the pizza-shop story)*
+- **Module 1.5** — Kafka vs. RabbitMQ, SQS, Kinesis, Pulsar, NATS, Flink *(the cafeteria analogy)*
 - **Module 2** — Topics, partitions, and offsets *(the multi-lane highway)*
 - **Module 3** — Brokers, the cluster, and the controller *(the warehouse network)*
 - **Module 3.5** — Dev environment setup *(Docker, Spring Boot project, first run)*
