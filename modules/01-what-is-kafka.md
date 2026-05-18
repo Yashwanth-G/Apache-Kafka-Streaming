@@ -1,45 +1,92 @@
 # Module 1 — What is Kafka and why does it exist?
 
-## 1.1 The problem Kafka solves
+## 1.1 The problem Kafka solves — a story
 
-Imagine your company has 20 services: a website, a mobile app, a payments
-service, a fraud-detection service, an email service, a recommendation
-engine, an analytics warehouse, and so on. Every service produces events
-("user signed up", "payment succeeded", "item viewed") and every other
-service might need to react to those events.
+Forget software for a moment. Imagine you run a small **online pizza
+shop**. A customer places one order on your website. To complete that
+one order, *seven different things* must happen:
 
-If every service talks directly to every other service, you get a
-**spaghetti** of point-to-point connections:
+1. Charge the customer's credit card.
+2. Send a confirmation email.
+3. Send an SMS with the order number.
+4. Tell the kitchen to start cooking.
+5. Update the inventory ("one pepperoni pizza used up the cheese").
+6. Update the live revenue dashboard for the owner.
+7. Add loyalty points to the customer's account.
 
-```
-website ──▶ email
-website ──▶ analytics
-website ──▶ fraud
-payments ──▶ email
-payments ──▶ analytics
-payments ──▶ fraud
-... and so on, N × N connections
-```
+### The naive way: one service does it all
 
-This breaks down because:
-- Adding a new consumer means changing every producer.
-- If the email service is down, the website blocks.
-- Different services need data at different speeds.
-- Nobody has a clear, replayable history of what happened.
+You write ONE function in your order service that does all 7 things,
+one after another, before replying "order placed!" to the customer.
 
-**Kafka's job** is to sit in the middle as a **durable, ordered, replayable
-log of events** that every service writes to and reads from independently.
+What goes wrong?
+- The SMS provider is slow today → the customer waits 8 seconds for
+  the page to load.
+- The loyalty service is **down** → the entire order fails, even
+  though the pizza could have been made.
+- A new requirement comes in: "also push the order to our analytics
+  warehouse." → you edit the order service again, redeploy, risk a
+  bug, and now the order service has 8 responsibilities.
 
-```
-website ──┐
-payments ─┼──▶ [ KAFKA ] ──▶ email
-mobile ───┘                ──▶ analytics
-                           ──▶ fraud
-                           ──▶ recommendations
-```
+### The slightly-better way: services call each other directly
 
-Producers don't know who's reading. Consumers don't know who's writing.
-They both just talk to Kafka.
+You break it up. The order service calls the payment service, which
+calls the email service, which calls the SMS service, which calls the
+kitchen service, and so on.
+
+Now it's worse in a different way:
+- Every service has to know **who** to call next. The order service
+  has the phone numbers of 6 other services hardcoded.
+- If the email service goes down, payment can't move forward.
+- A new feature ("send a WhatsApp message too") = changing wiring in
+  multiple services.
+- Nobody has a **complete history** of what happened today. If the
+  loyalty service had a bug between 2 and 3pm, you can't re-process
+  the orders that came in during that hour.
+
+This is called the **point-to-point** problem. It works for two or
+three services. It does not work for ten.
+
+### The Kafka way
+
+We change the model. The order service does **just one thing**: it
+writes a single piece of paper that says:
+
+> *"At 14:03, customer #42 placed order #9981 for one pepperoni pizza,
+>  $14.99, paid with card ending 4242."*
+
+…and drops that paper into a big shared box labelled `orders.placed`.
+That's it. It replies to the customer immediately. **It does not know
+or care who reads that paper.**
+
+Now, independently:
+- The **email service** has someone standing at the box, reading every
+  new paper, sending an email. If it's slow, it doesn't slow down
+  anything else.
+- The **SMS service** does the same, in parallel.
+- The **kitchen display** does the same.
+- The **inventory service** does the same.
+- The **loyalty service** does the same.
+
+If the **loyalty service crashes** for an hour, the papers don't
+disappear. They sit in the box. When loyalty comes back up, it picks
+up reading where it left off, and catches up. Nothing else was
+affected.
+
+If tomorrow someone wants to add **WhatsApp messages**, they just
+write a new tiny service that also reads from the same `orders.placed`
+box. **No existing service needs to change.**
+
+That big shared box is what **Kafka** is. Your job for the rest of
+this course is to understand how the box works internally so it can
+be (a) durable — papers don't get lost, (b) ordered — papers per
+customer stay in sequence, (c) parallel — millions of papers per
+second across many readers, and (d) replayable — a new service can
+catch up on the last week of papers if it wants to.
+
+**One-line takeaway:** Kafka is the *shared, durable, append-only
+notebook* that every service writes to and reads from on its own
+schedule, so no service is tightly tied to any other.
 
 ## 1.2 The Post Office analogy (memorize this one)
 
